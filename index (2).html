@@ -115,16 +115,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .parsed-item-row:last-child{border:none}
 .type-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:5px}
 .backup-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
-.btn-backup{font-size:12px;padding:7px 14px;border-radius:8px;cursor:pointer;font-weight:500;border:1px solid var(--border);background:#fff;color:var(--text);display:flex;align-items:center;gap:5px}
+.btn-backup{font-size:12px;padding:7px 14px;border-radius:8px;cursor:pointer;font-weight:500;border:1px solid var(--border);background:#fff;color:var(--text)}
 .btn-backup.exp{border-color:var(--green);color:var(--green)}
 .btn-backup.imp{border-color:var(--blue);color:var(--blue)}
 .slabel{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
 .section-title{font-size:15px;font-weight:700;margin-bottom:14px}
-.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a2e;color:#fff;font-size:13px;padding:10px 22px;border-radius:20px;z-index:999;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
-.toast.show{opacity:1}
 .sync-bar{background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
 .sync-dot{width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0;animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a2e;color:#fff;font-size:13px;padding:10px 22px;border-radius:20px;z-index:999;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+.toast.show{opacity:1}
 @media(max-width:600px){.stat-row{grid-template-columns:1fr 1fr}.member-grid{grid-template-columns:1fr 1fr}}
 </style>
 </head>
@@ -153,18 +153,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       </button>
     </div>
   </div>
-
   <div class="main">
-    <div id="mgr-tabs" style="display:none">
-      <div class="tabs">
-        <button class="tab active" onclick="switchView('planner',this)">📅 My Planner</button>
-        <button class="tab" onclick="switchView('mytasks',this)">✅ My Tasks</button>
-        <button class="tab" onclick="switchView('team',this)">👥 Team</button>
-        <button class="tab" onclick="switchView('calls',this)">📋 Call Notes</button>
-      </div>
-    </div>
+    <div class="tabs" id="tab-bar"></div>
 
-    <!-- MY PLANNER -->
     <div id="view-planner" style="display:none">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
         <div>
@@ -181,16 +172,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <div class="planner-wrap" id="planner-blocks"></div>
     </div>
 
-    <!-- MY TASKS -->
     <div id="view-mytasks" style="display:none">
-      <div style="margin-bottom:16px">
-        <div class="section-title" style="margin:0">My Tasks</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:2px">Private · only visible to you</div>
-      </div>
-      <div class="board" id="my-board"></div>
+      <div class="sync-bar"><div class="sync-dot"></div><span>Live · updates in real time across all devices</span></div>
+      <div id="member-board-wrap"></div>
     </div>
 
-    <!-- TEAM VIEW -->
     <div id="view-team" style="display:none">
       <div class="backup-row">
         <button class="btn-backup exp" onclick="exportData()">⬇ Export backup</button>
@@ -202,7 +188,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <div id="member-detail"></div>
     </div>
 
-    <!-- CALL NOTES -->
     <div id="view-calls" style="display:none">
       <div class="call-card">
         <div class="call-title">📋 One line per person — tasks go straight to their board</div>
@@ -213,15 +198,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <div class="slabel" style="margin-top:4px">Previous notes</div>
       <div id="call-history"></div>
     </div>
-
-    <!-- MEMBER BOARD -->
-    <div id="view-member" style="display:none">
-      <div class="sync-bar">
-        <div class="sync-dot"></div>
-        <span>Live — tasks update in real time across all devices</span>
-      </div>
-      <div id="member-board-wrap"></div>
-    </div>
   </div>
 </div>
 
@@ -229,8 +205,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(this)"/>
 
 <script>
-// ── CONFIG ────────────────────────────────────────────────────────────
-const FB_URL = "https://hr-planner-f98d2-default-rtdb.firebaseio.com";
+const FB = "https://hr-planner-f98d2-default-rtdb.firebaseio.com";
 
 const TEAM=[
   {id:"susen",  name:"Susen",   color:"#534AB7"},
@@ -262,45 +237,24 @@ const SCFG={
 };
 
 let me=null;
-// localStorage only for manager's private planner (not shared)
 let localDB={};
 function loadLocal(){try{localDB=JSON.parse(localStorage.getItem('vg_local')||'{}')}catch(e){localDB={}}}
 function saveLocal(){localStorage.setItem('vg_local',JSON.stringify(localDB))}
-
 function ini(n){return n.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2)}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
-function fmtDate(ts){if(!ts)return'';const d=new Date(ts);return d.toLocaleDateString('en-IN',{day:'numeric',month:'short'})}
+function fmtDate(ts){if(!ts)return'';return new Date(ts).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}
 function getNowBlock(){const n=new Date(),c=n.getHours()*60+n.getMinutes();for(const b of SCHEDULE){const p=b.time.split('–');const[sh,sm]=p[0].split(':').map(Number);const[eh,em]=p[1].split(':').map(Number);if(c>=sh*60+sm&&c<eh*60+em)return b.id}return null}
 function showToast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500)}
 
-// ── FIREBASE REST API ─────────────────────────────────────────────────
-async function fbGet(path){
-  try{
-    const r=await fetch(FB_URL+path+'.json');
-    if(!r.ok)return null;
-    return await r.json();
-  }catch(e){return null}
-}
-async function fbSet(path,data){
-  try{
-    await fetch(FB_URL+path+'.json',{method:'PUT',body:JSON.stringify(data),headers:{'Content-Type':'application/json'}});
-  }catch(e){console.error('fbSet error',e)}
-}
-async function fbPatch(path,data){
-  try{
-    await fetch(FB_URL+path+'.json',{method:'PATCH',body:JSON.stringify(data),headers:{'Content-Type':'application/json'}});
-  }catch(e){console.error('fbPatch error',e)}
-}
-async function fbDelete(path){
-  try{
-    await fetch(FB_URL+path+'.json',{method:'DELETE'});
-  }catch(e){console.error('fbDelete error',e)}
-}
+// FIREBASE
+async function fbGet(path){try{const r=await fetch(FB+path+'.json');if(!r.ok)return null;return await r.json()}catch(e){return null}}
+async function fbSet(path,data){try{await fetch(FB+path+'.json',{method:'PUT',body:JSON.stringify(data),headers:{'Content-Type':'application/json'}})}catch(e){}}
+async function fbPatch(path,data){try{await fetch(FB+path+'.json',{method:'PATCH',body:JSON.stringify(data),headers:{'Content-Type':'application/json'}})}catch(e){}}
+async function fbDelete(path){try{await fetch(FB+path+'.json',{method:'DELETE'})}catch(e){}}
 
-// ── TASK OPERATIONS (Firebase) ────────────────────────────────────────
+// TASKS
 async function getTasks(uid){
-  // Non-managers can only read their own tasks
-  if(me && !me.isManager && uid !== me.id) return [];
+  if(me && !me.isManager && uid==='manager') return [];
   const data=await fbGet('/tasks/'+uid);
   if(!data)return[];
   return Object.entries(data).map(([id,t])=>({...t,id}));
@@ -308,20 +262,15 @@ async function getTasks(uid){
 async function addTask(uid,task){
   const id='t'+Date.now()+Math.random().toString(36).slice(2,6);
   await fbSet('/tasks/'+uid+'/'+id,{...task,id});
-  return id;
 }
-async function updateTask(uid,tid,updates){
-  await fbPatch('/tasks/'+uid+'/'+tid,updates);
-}
-async function deleteTask(uid,tid){
-  await fbDelete('/tasks/'+uid+'/'+tid);
-}
+async function updateTask(uid,tid,updates){await fbPatch('/tasks/'+uid+'/'+tid,updates)}
+async function deleteTask(uid,tid){await fbDelete('/tasks/'+uid+'/'+tid)}
 
-// ── PLANNER (localStorage — manager private) ──────────────────────────
-function getPNotes(bid){return localDB['manager__p__'+bid]||[]}
-function setPNotes(bid,v){localDB['manager__p__'+bid]=v;saveLocal()}
+// PLANNER (manager private — localStorage)
+function getPNotes(bid){return localDB['mgr_p_'+bid]||[]}
+function setPNotes(bid,v){localDB['mgr_p_'+bid]=v;saveLocal()}
 
-// ── LOGIN ─────────────────────────────────────────────────────────────
+// LOGIN
 function buildLogin(){
   document.getElementById('name-grid').innerHTML=TEAM.map(m=>`
     <button class="name-btn" onclick="login('${m.id}')">
@@ -340,6 +289,7 @@ function logout(){
   document.getElementById('login-screen').style.display='flex';
   document.getElementById('app-screen').style.display='none';
 }
+
 function startApp(){
   document.getElementById('login-screen').style.display='none';
   document.getElementById('app-screen').style.display='block';
@@ -347,39 +297,45 @@ function startApp(){
   const tav=document.getElementById('top-av');tav.textContent=ini(me.name);tav.style.background=me.color;
   document.getElementById('pill-name').textContent=me.name;
   document.getElementById('top-date').textContent=new Date().toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short'});
-  if(me.isManager===true){
-    document.getElementById('mgr-tabs').style.display='block';
-    showView('planner');renderPlannerBlocks();
+
+  // Build tabs based on role
+  const tabBar=document.getElementById('tab-bar');
+  if(me.isManager){
+    tabBar.innerHTML=`
+      <button class="tab active" onclick="switchView('planner',this)">📅 My Planner</button>
+      <button class="tab" onclick="switchView('mytasks',this)">✅ My Tasks</button>
+      <button class="tab" onclick="switchView('team',this)">👥 Team</button>
+      <button class="tab" onclick="switchView('calls',this)">📋 Call Notes</button>`;
+    showOnly('planner');
+    renderPlannerBlocks();
   } else {
-    // TEAM MEMBER — lock down everything
-    document.getElementById('mgr-tabs').style.display='none';
-    // Hide all manager-only views
-    ['planner','mytasks','team','calls'].forEach(v=>{
-      const el=document.getElementById('view-'+v);
-      if(el){el.style.display='none';el.innerHTML='';}
-    });
-    // Remove manager tabs from DOM entirely so no way to navigate
-    const mgrTabsEl=document.getElementById('mgr-tabs');
-    if(mgrTabsEl)mgrTabsEl.remove();
-    showView('member');
+    tabBar.innerHTML=`<button class="tab active">✅ My Tasks</button>`;
+    showOnly('mytasks');
     setTimeout(()=>renderMemberBoard(me.id,false),50);
   }
 }
 
-const ALL_VIEWS=['planner','mytasks','team','calls','member'];
-function showView(n){ALL_VIEWS.forEach(v=>{const el=document.getElementById('view-'+v);if(el)el.style.display=v===n?'block':'none'})}
-function switchView(n,el){
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');showView(n);
-  if(n==='planner')renderPlannerBlocks();
-  if(n==='mytasks')renderMyBoard();
-  if(n==='team')renderTeamView();
-  if(n==='calls')renderCallHistory();
+// Show one view, hide all others
+function showOnly(name){
+  ['planner','mytasks','team','calls'].forEach(v=>{
+    const el=document.getElementById('view-'+v);
+    if(el) el.style.display = v===name ? 'block' : 'none';
+  });
 }
 
-// ── PLANNER (manager private, localStorage) ───────────────────────────
+function switchView(name,el){
+  document.querySelectorAll('#tab-bar .tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  showOnly(name);
+  if(name==='planner') renderPlannerBlocks();
+  if(name==='mytasks'){ if(me.isManager) renderMyBoard(); else renderMemberBoard(me.id,false); }
+  if(name==='team') renderTeamView();
+  if(name==='calls') renderCallHistory();
+}
+
+// PLANNER
 function renderPlannerBlocks(){
-  // Only manager can see planner
-  if(!me || !me.isManager) return;
+  if(!me||!me.isManager) return;
   const nowId=getNowBlock();
   let total=0,done=0;
   SCHEDULE.forEach(b=>{const n=getPNotes(b.id);total+=n.length;done+=n.filter(x=>x.done).length});
@@ -396,7 +352,7 @@ function renderPlannerBlocks(){
         <span class="chev ${isNow?'open':''}" id="pbchev-${b.id}">▶</span>
       </div>
       <div class="block-body ${isNow?'open':''}" id="pbbody-${b.id}">
-        <div id="pbnotes-${b.id}">${renderPNotes(b.id)}</div>
+        <div id="pbnotes-${b.id}">${renderPNotesList(b.id)}</div>
         <div class="add-row">
           <input class="add-input" id="pbinp-${b.id}" placeholder="Add note or task..." onkeydown="if(event.key==='Enter')addPNote('${b.id}')"/>
           <button class="btn-add" onclick="addPNote('${b.id}')">Add</button>
@@ -405,7 +361,7 @@ function renderPlannerBlocks(){
     </div>`
   }).join('')
 }
-function renderPNotes(bid){
+function renderPNotesList(bid){
   const notes=getPNotes(bid);
   if(!notes.length)return'<div class="empty-msg">No notes yet.</div>';
   return notes.map((n,i)=>`
@@ -421,49 +377,43 @@ function renderPNotes(bid){
     </div>`).join('')
 }
 function toggleBlock(bid){const b=document.getElementById('pbbody-'+bid);const c=document.getElementById('pbchev-'+bid);const h=b.previousElementSibling;const o=b.classList.toggle('open');c.classList.toggle('open',o);h.classList.toggle('open',o)}
-function addPNote(bid){if(!me||!me.isManager)return;const inp=document.getElementById('pbinp-'+bid);const val=(inp.value||'').trim();if(!val)return;const n=getPNotes(bid);n.push({text:val,done:false,ts:Date.now()});setPNotes(bid,n);inp.value='';document.getElementById('pbnotes-'+bid).innerHTML=renderPNotes(bid);updPCnt(bid);showToast('Added')}
-function togglePN(bid,i){if(!me||!me.isManager)return;const n=getPNotes(bid);if(n[i]){n[i].done=!n[i].done;if(n[i].done&&!n[i].doneTs)n[i].doneTs=Date.now();if(!n[i].done)n[i].doneTs=null;}setPNotes(bid,n);document.getElementById('pbnotes-'+bid).innerHTML=renderPNotes(bid);updPCnt(bid);updPProg()}
-function delPN(bid,i){if(!me||!me.isManager)return;const n=getPNotes(bid);n.splice(i,1);setPNotes(bid,n);document.getElementById('pbnotes-'+bid).innerHTML=renderPNotes(bid);updPCnt(bid);updPProg();showToast('Deleted')}
+function addPNote(bid){if(!me||!me.isManager)return;const inp=document.getElementById('pbinp-'+bid);const val=(inp.value||'').trim();if(!val)return;const n=getPNotes(bid);n.push({text:val,done:false,ts:Date.now()});setPNotes(bid,n);inp.value='';document.getElementById('pbnotes-'+bid).innerHTML=renderPNotesList(bid);updPCnt(bid);showToast('Added')}
+function togglePN(bid,i){if(!me||!me.isManager)return;const n=getPNotes(bid);if(n[i]){n[i].done=!n[i].done;if(n[i].done)n[i].doneTs=Date.now();else n[i].doneTs=null;}setPNotes(bid,n);document.getElementById('pbnotes-'+bid).innerHTML=renderPNotesList(bid);updPCnt(bid);updPProg()}
+function delPN(bid,i){if(!me||!me.isManager)return;const n=getPNotes(bid);n.splice(i,1);setPNotes(bid,n);document.getElementById('pbnotes-'+bid).innerHTML=renderPNotesList(bid);updPCnt(bid);updPProg();showToast('Deleted')}
 function updPCnt(bid){const n=getPNotes(bid);const el=document.getElementById('pbcnt-'+bid);if(el)el.textContent=n.length?n.filter(x=>x.done).length+'/'+n.length:''}
 function updPProg(){let t=0,d=0;SCHEDULE.forEach(b=>{const n=getPNotes(b.id);t+=n.length;d+=n.filter(x=>x.done).length});const p=t?Math.round(d/t*100):0;document.getElementById('pl-pct').textContent=p+'%';document.getElementById('pl-prog').style.width=p+'%'}
 
-// ── MY TASKS BOARD (Firebase) ─────────────────────────────────────────
+// TASK BOARD
 async function renderMyBoard(){
-  document.getElementById('my-board').innerHTML='<div class="empty-msg">Loading...</div>';
+  const wrap=document.getElementById('member-board-wrap');
+  wrap.innerHTML='<div class="empty-msg">Loading...</div>';
   const tasks=await getTasks('manager');
-  document.getElementById('my-board').innerHTML=renderBoardHTML('manager',tasks,false,'mgr');
+  wrap.innerHTML=renderBoardHTML('manager',tasks,false,'mgr');
 }
 
 async function renderMemberBoard(uid,ro){
-  // Security: non-managers can ONLY see their own board
-  if(!me.isManager && uid !== me.id) return;
-  const wrap=document.getElementById('member-board-wrap');
+  const wrap=document.getElementById(ro?'member-detail':'member-board-wrap');
   if(!wrap)return;
-  const memberName=TEAM.find(m=>m.id===uid)?.name||uid;
   wrap.innerHTML=`
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-      <div>
-        <div class="section-title" style="margin:0">${ro?esc(memberName)+"'s Tasks":"My Tasks"}</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:2px">${ro?'Manager view — read only':'Your tasks · tap circle to change status'}</div>
-      </div>
-      ${ro?`<button class="btn-add" style="background:#fff;color:var(--purple);border:1px solid var(--purple)" onclick="closeDetail()">← Back</button>`:''}
-    </div>
+    ${ro?`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div><div class="section-title" style="margin:0">${esc(TEAM.find(m=>m.id===uid)?.name||uid)}'s Tasks</div>
+      <div style="font-size:12px;color:var(--muted)">Read only</div></div>
+      <button class="btn-add" style="background:#fff;color:var(--purple);border:1px solid var(--purple)" onclick="closeDetail()">← Back</button>
+    </div>`:''}
     <div class="board" id="board-${uid}"><div class="empty-msg">Loading...</div></div>`;
   const tasks=await getTasks(uid);
-  const boardEl=document.getElementById('board-'+uid);
-  if(boardEl) boardEl.innerHTML=renderBoardHTML(uid,tasks,ro,uid);
+  const el=document.getElementById('board-'+uid);
+  if(el) el.innerHTML=renderBoardHTML(uid,tasks,ro,uid);
 }
 
 function renderBoardHTML(uid,tasks,ro,pfx){
-  const grouped={};
-  STATUSES.forEach(s=>{grouped[s]=tasks.filter(t=>t.status===s)});
+  const grouped={};STATUSES.forEach(s=>{grouped[s]=tasks.filter(t=>t.status===s)});
   return STATUSES.map(s=>{
     const cfg=SCFG[s];const list=grouped[s];const isOpen=s==='pending'||s==='inprogress';
     return`<div class="bsec">
       <div class="bsec-hdr ${isOpen?'open':''}" onclick="toggleBS(this)">
         <span class="sdot" style="background:${cfg.dot}"></span>
-        <span class="sname">${cfg.label}</span>
-        <span class="scnt">${list.length}</span>
+        <span class="sname">${cfg.label}</span><span class="scnt">${list.length}</span>
         <span class="chev ${isOpen?'open':''}">▶</span>
       </div>
       <div class="bsec-body ${isOpen?'open':''}">
@@ -482,15 +432,13 @@ function renderTaskRow(uid,task,ro){
   const cfg=SCFG[task.status]||SCFG.pending;
   return`<div class="task-row" id="tr-${task.id}">
     <div class="task-left">
-      <div class="tcheck ${cfg.cc}" ${!ro?`onclick="cycleTask('${uid}','${task.id}',this)" title="Click to change status"`:`style="cursor:default"`}></div>
+      <div class="tcheck ${cfg.cc}" ${!ro?`onclick="cycleTask('${uid}','${task.id}',this)"`:`style="cursor:default"`}></div>
       <div class="task-body">
         <div class="tname ${task.status==='done'?'done':''}">${esc(task.text)}</div>
         <div class="tmeta">
-          ${!ro
-            ?`<select class="ssel" onchange="changeStatus('${uid}','${task.id}',this.value,this)">
-                ${STATUSES.map(s=>`<option value="${s}" ${task.status===s?'selected':''}>${SCFG[s].label}</option>`).join('')}
-              </select>`
-            :`<span class="sp ${cfg.cls}">${cfg.label}</span>`}
+          ${!ro?`<select class="ssel" onchange="changeStatus('${uid}','${task.id}',this.value)">
+            ${STATUSES.map(s=>`<option value="${s}" ${task.status===s?'selected':''}>${SCFG[s].label}</option>`).join('')}
+          </select>`:`<span class="sp ${cfg.cls}">${cfg.label}</span>`}
           ${task.source==='call'?`<span class="call-tag">📋 from call</span>`:''}
           ${task.ts?`<span style="font-size:10px;color:var(--faint)">Added ${fmtDate(task.ts)}</span>`:''}
           ${task.status==='done'&&task.doneTs?`<span style="font-size:10px;color:var(--green)">✓ ${fmtDate(task.doneTs)}</span>`:''}
@@ -503,83 +451,62 @@ function renderTaskRow(uid,task,ro){
   </div>`
 }
 
-function toggleBS(hdr){
-  const body=hdr.nextElementSibling;const chev=hdr.querySelector('.chev');
-  const o=body.classList.toggle('open');chev.classList.toggle('open',o);hdr.classList.toggle('open',o);
-}
+function toggleBS(hdr){const body=hdr.nextElementSibling;const chev=hdr.querySelector('.chev');const o=body.classList.toggle('open');chev.classList.toggle('open',o);hdr.classList.toggle('open',o)}
 
 async function addBTask(uid,status,pfx){
   const inp=document.getElementById('addinp-'+pfx+'-'+status);
-  const val=(inp?.value||'').trim();if(!val)return;
-  inp.value='';
+  const val=(inp?.value||'').trim();if(!val)return;inp.value='';
   await addTask(uid,{text:val,status,comments:[],ts:Date.now()});
-  if(pfx==='mgr')renderMyBoard();else renderMemberBoard(uid,false);
+  if(pfx==='mgr') renderMyBoard(); else renderMemberBoard(uid,false);
   showToast('Task added');
 }
 
-async function changeStatus(uid,tid,ns,sel){
+async function changeStatus(uid,tid,ns){
   const updates={status:ns};
-  if(ns==='done')updates.doneTs=Date.now();
-  if(ns!=='done')updates.doneTs=null;
+  if(ns==='done') updates.doneTs=Date.now(); else updates.doneTs=null;
   await updateTask(uid,tid,updates);
-  // update UI without full reload
   const row=document.getElementById('tr-'+tid);
   if(row){
     const cfg=SCFG[ns];
-    const chk=row.querySelector('.tcheck');
-    if(chk){chk.className='tcheck '+cfg.cc;}
-    const nm=row.querySelector('.tname');
-    if(nm){nm.className='tname'+(ns==='done'?' done':'');}
+    row.querySelector('.tcheck').className='tcheck '+cfg.cc;
+    const nm=row.querySelector('.tname');if(nm)nm.className='tname'+(ns==='done'?' done':'');
   }
-  showToast('Status updated');
+  showToast('Updated');
 }
 
 async function cycleTask(uid,tid,chkEl){
   const sel=chkEl.closest('.task-row').querySelector('.ssel');
-  if(sel){
-    const cur=sel.value;
-    const ns=STATUSES[(STATUSES.indexOf(cur)+1)%STATUSES.length];
-    sel.value=ns;
-    changeStatus(uid,tid,ns,sel);
-  }
+  if(sel){const cur=sel.value;const ns=STATUSES[(STATUSES.indexOf(cur)+1)%STATUSES.length];sel.value=ns;changeStatus(uid,tid,ns);}
 }
 
 async function removeBTask(uid,tid){
   await deleteTask(uid,tid);
-  const row=document.getElementById('tr-'+tid);
-  if(row)row.remove();
+  const row=document.getElementById('tr-'+tid);if(row)row.remove();
   showToast('Deleted');
 }
 
 async function addComment(uid,tid,text){
-  const row=document.getElementById('tr-'+tid);
-  // get current comments from Firebase
   const data=await fbGet('/tasks/'+uid+'/'+tid+'/comments');
-  const comments=data?Object.values(data):[];
+  const comments=Array.isArray(data)?data:(data?Object.values(data):[]);
   comments.push({text,by:me.name,ts:Date.now()});
   await fbPatch('/tasks/'+uid+'/'+tid,{comments});
-  // re-render just comment area
-  const cmtArea=row?.querySelector('.task-body');
-  if(cmtArea){
-    const existing=cmtArea.querySelectorAll('.cmt-bubble');
-    existing.forEach(e=>e.remove());
-    const inp=cmtArea.querySelector('.cmt-input');
-    comments.forEach(c=>{
-      const d=document.createElement('div');
-      d.className='cmt-bubble';
-      d.innerHTML=`💬 ${esc(c.text)} <span style="font-size:10px;color:var(--faint)">— ${esc(c.by)}</span>`;
-      cmtArea.insertBefore(d,inp);
-    });
+  const row=document.getElementById('tr-'+tid);
+  if(row){
+    const inp=row.querySelector('.cmt-input');
+    const bubble=document.createElement('div');
+    bubble.className='cmt-bubble';
+    bubble.innerHTML=`💬 ${esc(text)} <span style="font-size:10px;color:var(--faint)">— ${esc(me.name)}</span>`;
+    if(inp) inp.parentNode.insertBefore(bubble,inp);
   }
   showToast('Comment added');
 }
 
-// ── TEAM VIEW ─────────────────────────────────────────────────────────
+// TEAM VIEW
 async function renderTeamView(){
-  document.getElementById('team-stats').innerHTML='<div style="font-size:13px;color:var(--muted);padding:10px 0">Loading...</div>';
   const members=TEAM.filter(m=>!m.isManager);
-  let total=0,done=0;
+  document.getElementById('team-stats').innerHTML='<div style="font-size:13px;color:var(--muted)">Loading...</div>';
   const memberData=await Promise.all(members.map(m=>getTasks(m.id)));
+  let total=0,done=0;
   memberData.forEach(tasks=>{total+=tasks.length;done+=tasks.filter(x=>x.status==='done').length});
   document.getElementById('team-stats').innerHTML=`
     <div class="stat"><div class="stat-num">${members.length}</div><div class="stat-lbl">members</div></div>
@@ -604,28 +531,19 @@ async function renderTeamView(){
 
 async function openDetail(uid,card){
   document.querySelectorAll('.member-card').forEach(c=>c.classList.remove('sel'));card.classList.add('sel');
-  document.getElementById('member-detail').innerHTML=`<div id="member-board-wrap"></div>`;
   await renderMemberBoard(uid,true);
 }
 function closeDetail(){document.getElementById('member-detail').innerHTML='';document.querySelectorAll('.member-card').forEach(c=>c.classList.remove('sel'))}
 
-// ── CALL NOTES (free rule-based parser) ───────────────────────────────
+// CALL NOTES
 async function parseNotes(){
-  const txt=document.getElementById('call-ta').value.trim();
-  if(!txt){alert('Please add notes first');return}
-  const members=TEAM.filter(m=>!m.isManager);
-  const parsed=[];
+  const txt=document.getElementById('call-ta').value.trim();if(!txt){alert('Please add notes first');return}
+  const members=TEAM.filter(m=>!m.isManager);const parsed=[];
   const lines=txt.split('\n').map(l=>l.trim()).filter(l=>l.length>0);
   lines.forEach(line=>{
-    const match=line.match(/^([^:\-]+)[:\-](.+)$/);
-    if(!match)return;
-    const namePart=match[1].trim();const taskPart=match[2].trim();
-    if(!taskPart)return;
-    const member=members.find(m=>
-      m.name.toLowerCase()===namePart.toLowerCase()||
-      namePart.toLowerCase().includes(m.name.toLowerCase())||
-      m.name.toLowerCase().includes(namePart.toLowerCase())
-    );
+    const match=line.match(/^([^:\-]+)[:\-](.+)$/);if(!match)return;
+    const namePart=match[1].trim();const taskPart=match[2].trim();if(!taskPart)return;
+    const member=members.find(m=>m.name.toLowerCase()===namePart.toLowerCase()||namePart.toLowerCase().includes(m.name.toLowerCase())||m.name.toLowerCase().includes(namePart.toLowerCase()));
     if(!member)return;
     const isBlocker=/block|stuck|cannot|can't|waiting|depend|issue|problem|urgent/i.test(taskPart);
     let entry=parsed.find(p=>p.memberId===member.id);
@@ -633,18 +551,9 @@ async function parseNotes(){
     entry.items.push({text:taskPart,type:isBlocker?'blocker':'action'});
   });
   if(!parsed.length){
-    document.getElementById('parsed-out').innerHTML=`<div style="background:var(--red-light);border:1px solid var(--red);border-radius:10px;padding:14px;font-size:13px;color:var(--red)">
-      <strong>No tasks found.</strong> Use format:<br><br>
-      <code style="background:#fff;padding:4px 8px;border-radius:5px;display:block;margin-top:6px">Susen: change Performance Appraisal timeline on Keka</code>
-    </div>`;return;
+    document.getElementById('parsed-out').innerHTML=`<div style="background:var(--red-light);border:1px solid var(--red);border-radius:10px;padding:14px;font-size:13px;color:var(--red)"><strong>No tasks found.</strong> Use format:<br><br><code style="background:#fff;padding:4px 8px;border-radius:5px;display:block;margin-top:6px">Susen: task description here</code></div>`;return;
   }
-  // save to Firebase
-  await Promise.all(parsed.map(p=>
-    Promise.all(p.items.map(item=>
-      addTask(p.memberId,{text:item.text,status:item.type==='blocker'?'blocked':'pending',comments:[],source:'call',ts:Date.now()})
-    ))
-  ));
-  // save history locally
+  await Promise.all(parsed.map(p=>Promise.all(p.items.map(item=>addTask(p.memberId,{text:item.text,status:item.type==='blocker'?'blocked':'pending',comments:[],source:'call',ts:Date.now()})))));
   let hist=[];try{hist=JSON.parse(localStorage.getItem('vg_calls')||'[]')}catch(e){}
   hist.unshift({ts:Date.now(),snippet:txt.slice(0,120),parsed:parsed.map(p=>({name:p.name,items:p.items}))});
   localStorage.setItem('vg_calls',JSON.stringify(hist.slice(0,20)));
@@ -652,17 +561,14 @@ async function parseNotes(){
   document.getElementById('parsed-out').innerHTML=`
     <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px">
       <div style="font-size:13px;font-weight:600;color:var(--purple);margin-bottom:12px">✓ ${total} task${total!==1?'s':''} filed — visible on their boards now</div>
-      ${parsed.map(p=>`
-        <div style="margin-bottom:10px">
-          <div style="font-size:12px;font-weight:700;color:var(--purple);margin-bottom:5px;display:flex;align-items:center;gap:7px">
-            <div class="av" style="background:${p.color};width:22px;height:22px;font-size:9px">${ini(p.name)}</div>${esc(p.name)}
-          </div>
-          ${p.items.map(item=>`<div class="parsed-item-row"><span class="type-dot" style="background:${item.type==='blocker'?'#A32D2D':'#BA7517'}"></span>${esc(item.text)}</div>`).join('')}
-        </div>`).join('')}
+      ${parsed.map(p=>`<div style="margin-bottom:10px">
+        <div style="font-size:12px;font-weight:700;color:var(--purple);margin-bottom:5px;display:flex;align-items:center;gap:7px">
+          <div class="av" style="background:${p.color};width:22px;height:22px;font-size:9px">${ini(p.name)}</div>${esc(p.name)}
+        </div>
+        ${p.items.map(item=>`<div class="parsed-item-row"><span class="type-dot" style="background:${item.type==='blocker'?'#A32D2D':'#BA7517'}"></span>${esc(item.text)}</div>`).join('')}
+      </div>`).join('')}
     </div>`;
-  document.getElementById('call-ta').value='';
-  renderCallHistory();
-  showToast(total+' task'+(total!==1?'s':'')+' filed ✓');
+  document.getElementById('call-ta').value='';renderCallHistory();showToast(total+' task'+(total!==1?'s':'')+' filed ✓');
 }
 
 function renderCallHistory(){
@@ -679,38 +585,26 @@ function renderCallHistory(){
     </div>`).join('');
 }
 
-// ── BACKUP ────────────────────────────────────────────────────────────
+// BACKUP
 async function exportData(){
   const allData={};
-  await Promise.all(TEAM.map(async m=>{
-    const tasks=await getTasks(m.id);
-    if(tasks.length)allData[m.id]=tasks;
-  }));
+  await Promise.all(TEAM.filter(m=>!m.isManager).map(async m=>{const tasks=await getTasks(m.id);if(tasks.length)allData[m.id]=tasks;}));
   const blob=new Blob([JSON.stringify({exported:new Date().toISOString(),tasks:allData},null,2)],{type:'application/json'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
-  a.download='hr-planner-backup-'+new Date().toISOString().slice(0,10)+'.json';a.click();
-  showToast('Backup exported ✓');
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='hr-planner-backup-'+new Date().toISOString().slice(0,10)+'.json';a.click();showToast('Backup exported ✓');
 }
 async function importData(input){
   const file=input.files[0];if(!file)return;
   const r=new FileReader();
   r.onload=async e=>{
-    try{
-      const p=JSON.parse(e.target.result);
-      const tasks=p.tasks||{};
-      await Promise.all(Object.entries(tasks).map(([uid,utasks])=>
-        Promise.all(utasks.map(t=>fbSet('/tasks/'+uid+'/'+t.id,t)))
-      ));
-      showToast('Restored ✓');
-      if(me?.isManager)renderTeamView();else renderMemberBoard(me.id,false);
+    try{const p=JSON.parse(e.target.result);const tasks=p.tasks||{};
+      await Promise.all(Object.entries(tasks).map(([uid,utasks])=>Promise.all(utasks.map(t=>fbSet('/tasks/'+uid+'/'+t.id,t)))));
+      showToast('Restored ✓');renderTeamView();
     }catch(err){alert('Invalid backup file')}
-  };
-  r.readAsText(file);input.value='';
+  };r.readAsText(file);input.value='';
 }
 
-// ── INIT ──────────────────────────────────────────────────────────────
-loadLocal();
-buildLogin();
+// INIT
+loadLocal();buildLogin();
 try{
   const savedId=localStorage.getItem('vg_me');
   if(savedId){const member=TEAM.find(m=>m.id===savedId);if(member){me=member;startApp();}}
