@@ -299,6 +299,8 @@ async function fbDelete(path){
 
 // ── TASK OPERATIONS (Firebase) ────────────────────────────────────────
 async function getTasks(uid){
+  // Non-managers can only read their own tasks
+  if(me && !me.isManager && uid !== me.id) return [];
   const data=await fbGet('/tasks/'+uid);
   if(!data)return[];
   return Object.entries(data).map(([id,t])=>({...t,id}));
@@ -316,8 +318,8 @@ async function deleteTask(uid,tid){
 }
 
 // ── PLANNER (localStorage — manager private) ──────────────────────────
-function getPNotes(bid){return localDB['p__'+bid]||[]}
-function setPNotes(bid,v){localDB['p__'+bid]=v;saveLocal()}
+function getPNotes(bid){return localDB['manager__p__'+bid]||[]}
+function setPNotes(bid,v){localDB['manager__p__'+bid]=v;saveLocal()}
 
 // ── LOGIN ─────────────────────────────────────────────────────────────
 function buildLogin(){
@@ -339,27 +341,44 @@ function logout(){
   document.getElementById('app-screen').style.display='none';
 }
 function startApp(){
+  const today = new Date().toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short'});
   document.getElementById('login-screen').style.display='none';
-  document.getElementById('app-screen').style.display='block';
-  const pav=document.getElementById('pill-av');pav.textContent=ini(me.name);pav.style.background=me.color;
-  const tav=document.getElementById('top-av');tav.textContent=ini(me.name);tav.style.background=me.color;
-  document.getElementById('pill-name').textContent=me.name;
-  document.getElementById('top-date').textContent=new Date().toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short'});
+
   if(me.isManager===true){
-    document.getElementById('mgr-tabs').style.display='block';
-    showView('planner');renderPlannerBlocks();
+    // Show ONLY manager app
+    document.getElementById('mgr-app').style.display='block';
+    document.getElementById('member-app').style.display='none';
+    document.getElementById('mgr-date').textContent=today;
+    showView('planner');
+    renderPlannerBlocks();
   } else {
-    document.getElementById('mgr-tabs').style.display='none';
-    ['planner','mytasks','team','calls'].forEach(v=>{const el=document.getElementById('view-'+v);if(el)el.style.display='none'});
-    showView('member');
+    // Show ONLY member app — manager app never touches the DOM
+    document.getElementById('member-app').style.display='block';
+    document.getElementById('mgr-app').style.display='none';
+    const av=document.getElementById('mem-av');
+    const pav=document.getElementById('mem-pill-av');
+    const pname=document.getElementById('mem-pill-name');
+    if(av){av.textContent=ini(me.name);av.style.background=me.color;}
+    if(pav){pav.textContent=ini(me.name);pav.style.background=me.color;}
+    if(pname) pname.textContent=me.name;
+    document.getElementById('mem-date').textContent=today;
     setTimeout(()=>renderMemberBoard(me.id,false),50);
   }
 }
 
-const ALL_VIEWS=['planner','mytasks','team','calls','member'];
-function showView(n){ALL_VIEWS.forEach(v=>{const el=document.getElementById('view-'+v);if(el)el.style.display=v===n?'block':'none'})}
+const MGR_VIEWS=['planner','mytasks','team','calls'];
+function showView(n){
+  MGR_VIEWS.forEach(v=>{
+    const el=document.getElementById('view-'+v);
+    if(el)el.style.display=v===n?'block':'none';
+  });
+}
 function switchView(n,el){
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');showView(n);
+  // Only callable from manager app
+  if(!me||!me.isManager)return;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  showView(n);
   if(n==='planner')renderPlannerBlocks();
   if(n==='mytasks')renderMyBoard();
   if(n==='team')renderTeamView();
@@ -368,6 +387,8 @@ function switchView(n,el){
 
 // ── PLANNER (manager private, localStorage) ───────────────────────────
 function renderPlannerBlocks(){
+  // Only manager can see planner
+  if(!me || !me.isManager) return;
   const nowId=getNowBlock();
   let total=0,done=0;
   SCHEDULE.forEach(b=>{const n=getPNotes(b.id);total+=n.length;done+=n.filter(x=>x.done).length});
@@ -409,9 +430,9 @@ function renderPNotes(bid){
     </div>`).join('')
 }
 function toggleBlock(bid){const b=document.getElementById('pbbody-'+bid);const c=document.getElementById('pbchev-'+bid);const h=b.previousElementSibling;const o=b.classList.toggle('open');c.classList.toggle('open',o);h.classList.toggle('open',o)}
-function addPNote(bid){const inp=document.getElementById('pbinp-'+bid);const val=(inp.value||'').trim();if(!val)return;const n=getPNotes(bid);n.push({text:val,done:false,ts:Date.now()});setPNotes(bid,n);inp.value='';document.getElementById('pbnotes-'+bid).innerHTML=renderPNotes(bid);updPCnt(bid);showToast('Added')}
-function togglePN(bid,i){const n=getPNotes(bid);if(n[i]){n[i].done=!n[i].done;if(n[i].done&&!n[i].doneTs)n[i].doneTs=Date.now();if(!n[i].done)n[i].doneTs=null;}setPNotes(bid,n);document.getElementById('pbnotes-'+bid).innerHTML=renderPNotes(bid);updPCnt(bid);updPProg()}
-function delPN(bid,i){const n=getPNotes(bid);n.splice(i,1);setPNotes(bid,n);document.getElementById('pbnotes-'+bid).innerHTML=renderPNotes(bid);updPCnt(bid);updPProg();showToast('Deleted')}
+function addPNote(bid){if(!me||!me.isManager)return;const inp=document.getElementById('pbinp-'+bid);const val=(inp.value||'').trim();if(!val)return;const n=getPNotes(bid);n.push({text:val,done:false,ts:Date.now()});setPNotes(bid,n);inp.value='';document.getElementById('pbnotes-'+bid).innerHTML=renderPNotes(bid);updPCnt(bid);showToast('Added')}
+function togglePN(bid,i){if(!me||!me.isManager)return;const n=getPNotes(bid);if(n[i]){n[i].done=!n[i].done;if(n[i].done&&!n[i].doneTs)n[i].doneTs=Date.now();if(!n[i].done)n[i].doneTs=null;}setPNotes(bid,n);document.getElementById('pbnotes-'+bid).innerHTML=renderPNotes(bid);updPCnt(bid);updPProg()}
+function delPN(bid,i){if(!me||!me.isManager)return;const n=getPNotes(bid);n.splice(i,1);setPNotes(bid,n);document.getElementById('pbnotes-'+bid).innerHTML=renderPNotes(bid);updPCnt(bid);updPProg();showToast('Deleted')}
 function updPCnt(bid){const n=getPNotes(bid);const el=document.getElementById('pbcnt-'+bid);if(el)el.textContent=n.length?n.filter(x=>x.done).length+'/'+n.length:''}
 function updPProg(){let t=0,d=0;SCHEDULE.forEach(b=>{const n=getPNotes(b.id);t+=n.length;d+=n.filter(x=>x.done).length});const p=t?Math.round(d/t*100):0;document.getElementById('pl-pct').textContent=p+'%';document.getElementById('pl-prog').style.width=p+'%'}
 
@@ -423,6 +444,8 @@ async function renderMyBoard(){
 }
 
 async function renderMemberBoard(uid,ro){
+  // Security: non-managers can ONLY see their own board
+  if(!me.isManager && uid !== me.id) return;
   const wrap=document.getElementById('member-board-wrap');
   if(!wrap)return;
   const memberName=TEAM.find(m=>m.id===uid)?.name||uid;
