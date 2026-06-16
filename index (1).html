@@ -138,34 +138,30 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   </div>
 </div>
 
-<div id="app-screen" style="display:none">
+<!-- MANAGER APP — only shown when Manager logs in -->
+<div id="mgr-app" style="display:none">
   <div class="topbar">
     <div class="logo">
-      <div class="av" id="top-av" style="background:var(--purple)">HR</div>
+      <div class="av" style="background:#993C1D">MG</div>
       HR Team Planner <span class="logo-badge">TEAM</span>
     </div>
     <div class="topbar-right">
-      <span class="topbar-date" id="top-date"></span>
+      <span class="topbar-date" id="mgr-date"></span>
       <button class="user-pill" onclick="logout()">
-        <div class="av" id="pill-av" style="width:22px;height:22px;font-size:9px;background:var(--purple)">?</div>
-        <span id="pill-name">...</span>
+        <div class="av" style="width:22px;height:22px;font-size:9px;background:#993C1D">MG</div>
+        <span>Manager</span>
         <span style="color:var(--muted);font-size:10px">▾</span>
       </button>
     </div>
   </div>
-
   <div class="main">
-    <div id="mgr-tabs" style="display:none">
-      <div class="tabs">
-        <button class="tab active" onclick="switchView('planner',this)">📅 My Planner</button>
-        <button class="tab" onclick="switchView('mytasks',this)">✅ My Tasks</button>
-        <button class="tab" onclick="switchView('team',this)">👥 Team</button>
-        <button class="tab" onclick="switchView('calls',this)">📋 Call Notes</button>
-      </div>
+    <div class="tabs">
+      <button class="tab active" onclick="switchView('planner',this)">📅 My Planner</button>
+      <button class="tab" onclick="switchView('mytasks',this)">✅ My Tasks</button>
+      <button class="tab" onclick="switchView('team',this)">👥 Team</button>
+      <button class="tab" onclick="switchView('calls',this)">📋 Call Notes</button>
     </div>
-
-    <!-- MY PLANNER -->
-    <div id="view-planner" style="display:none">
+    <div id="view-planner">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
         <div>
           <div class="section-title" style="margin:0">Today's Planner</div>
@@ -180,8 +176,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       </div>
       <div class="planner-wrap" id="planner-blocks"></div>
     </div>
-
-    <!-- MY TASKS -->
     <div id="view-mytasks" style="display:none">
       <div style="margin-bottom:16px">
         <div class="section-title" style="margin:0">My Tasks</div>
@@ -189,8 +183,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       </div>
       <div class="board" id="my-board"></div>
     </div>
-
-    <!-- TEAM VIEW -->
     <div id="view-team" style="display:none">
       <div class="backup-row">
         <button class="btn-backup exp" onclick="exportData()">⬇ Export backup</button>
@@ -201,8 +193,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <div class="member-grid" id="member-grid"></div>
       <div id="member-detail"></div>
     </div>
-
-    <!-- CALL NOTES -->
     <div id="view-calls" style="display:none">
       <div class="call-card">
         <div class="call-title">📋 One line per person — tasks go straight to their board</div>
@@ -213,14 +203,39 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <div class="slabel" style="margin-top:4px">Previous notes</div>
       <div id="call-history"></div>
     </div>
+  </div>
+</div>
 
-    <!-- MEMBER BOARD -->
-    <div id="view-member" style="display:none">
-      <div class="sync-bar">
-        <div class="sync-dot"></div>
-        <span>Live — tasks update in real time across all devices</span>
-      </div>
+<!-- TEAM MEMBER APP — my tasks + team view, no manager private content -->
+<div id="member-app" style="display:none">
+  <div class="topbar">
+    <div class="logo">
+      <div class="av" id="mem-av" style="background:var(--purple)">?</div>
+      HR Team Planner <span class="logo-badge">TEAM</span>
+    </div>
+    <div class="topbar-right">
+      <span class="topbar-date" id="mem-date"></span>
+      <button class="user-pill" onclick="logout()">
+        <div class="av" id="mem-pill-av" style="width:22px;height:22px;font-size:9px;background:var(--purple)">?</div>
+        <span id="mem-pill-name">...</span>
+        <span style="color:var(--muted);font-size:10px">▾</span>
+      </button>
+    </div>
+  </div>
+  <div class="main">
+    <div class="tabs">
+      <button class="tab active" onclick="switchMemView('myboard',this)">✅ My Tasks</button>
+      <button class="tab" onclick="switchMemView('teamboard',this)">👥 Team</button>
+    </div>
+    <div id="mem-view-myboard">
+      <div class="sync-bar"><div class="sync-dot"></div><span>Live — updates in real time</span></div>
       <div id="member-board-wrap"></div>
+    </div>
+    <div id="mem-view-teamboard" style="display:none">
+      <div class="stat-row" id="mem-team-stats"></div>
+      <div class="slabel">Team members</div>
+      <div class="member-grid" id="mem-member-grid"></div>
+      <div id="mem-member-detail"></div>
     </div>
   </div>
 </div>
@@ -299,8 +314,8 @@ async function fbDelete(path){
 
 // ── TASK OPERATIONS (Firebase) ────────────────────────────────────────
 async function getTasks(uid){
-  // Non-managers can only read their own tasks
-  if(me && !me.isManager && uid !== me.id) return [];
+  // Non-managers cannot see manager's private tasks
+  if(me && !me.isManager && uid === 'manager') return [];
   const data=await fbGet('/tasks/'+uid);
   if(!data)return[];
   return Object.entries(data).map(([id,t])=>({...t,id}));
@@ -318,8 +333,8 @@ async function deleteTask(uid,tid){
 }
 
 // ── PLANNER (localStorage — manager private) ──────────────────────────
-function getPNotes(bid){return localDB['p__'+bid]||[]}
-function setPNotes(bid,v){localDB['p__'+bid]=v;saveLocal()}
+function getPNotes(bid){return localDB['manager__p__'+bid]||[]}
+function setPNotes(bid,v){localDB['manager__p__'+bid]=v;saveLocal()}
 
 // ── LOGIN ─────────────────────────────────────────────────────────────
 function buildLogin(){
@@ -341,43 +356,98 @@ function logout(){
   document.getElementById('app-screen').style.display='none';
 }
 function startApp(){
+  const today = new Date().toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short'});
   document.getElementById('login-screen').style.display='none';
-  document.getElementById('app-screen').style.display='block';
-  const pav=document.getElementById('pill-av');pav.textContent=ini(me.name);pav.style.background=me.color;
-  const tav=document.getElementById('top-av');tav.textContent=ini(me.name);tav.style.background=me.color;
-  document.getElementById('pill-name').textContent=me.name;
-  document.getElementById('top-date').textContent=new Date().toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short'});
+
   if(me.isManager===true){
-    document.getElementById('mgr-tabs').style.display='block';
-    showView('planner');renderPlannerBlocks();
+    // Show ONLY manager app
+    document.getElementById('mgr-app').style.display='block';
+    document.getElementById('member-app').style.display='none';
+    document.getElementById('mgr-date').textContent=today;
+    showView('planner');
+    renderPlannerBlocks();
   } else {
-    // TEAM MEMBER — lock down everything
-    document.getElementById('mgr-tabs').style.display='none';
-    // Hide all manager-only views
-    ['planner','mytasks','team','calls'].forEach(v=>{
-      const el=document.getElementById('view-'+v);
-      if(el){el.style.display='none';el.innerHTML='';}
-    });
-    // Remove manager tabs from DOM entirely so no way to navigate
-    const mgrTabsEl=document.getElementById('mgr-tabs');
-    if(mgrTabsEl)mgrTabsEl.remove();
-    showView('member');
+    // Show ONLY member app — manager app never touches the DOM
+    document.getElementById('member-app').style.display='block';
+    document.getElementById('mgr-app').style.display='none';
+    const av=document.getElementById('mem-av');
+    const pav=document.getElementById('mem-pill-av');
+    const pname=document.getElementById('mem-pill-name');
+    if(av){av.textContent=ini(me.name);av.style.background=me.color;}
+    if(pav){pav.textContent=ini(me.name);pav.style.background=me.color;}
+    if(pname) pname.textContent=me.name;
+    document.getElementById('mem-date').textContent=today;
     setTimeout(()=>renderMemberBoard(me.id,false),50);
   }
 }
 
-const ALL_VIEWS=['planner','mytasks','team','calls','member'];
-function showView(n){ALL_VIEWS.forEach(v=>{const el=document.getElementById('view-'+v);if(el)el.style.display=v===n?'block':'none'})}
+const MGR_VIEWS=['planner','mytasks','team','calls'];
+function showView(n){
+  MGR_VIEWS.forEach(v=>{
+    const el=document.getElementById('view-'+v);
+    if(el)el.style.display=v===n?'block':'none';
+  });
+}
 function switchView(n,el){
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');showView(n);
+  if(!me||!me.isManager)return;
+  document.querySelectorAll('#mgr-app .tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  showView(n);
   if(n==='planner')renderPlannerBlocks();
   if(n==='mytasks')renderMyBoard();
   if(n==='team')renderTeamView();
   if(n==='calls')renderCallHistory();
 }
 
+// MEMBER VIEW SWITCHER
+function switchMemView(n,el){
+  document.querySelectorAll('#member-app .tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  ['myboard','teamboard'].forEach(v=>{
+    const d=document.getElementById('mem-view-'+v);
+    if(d)d.style.display=v===n?'block':'none';
+  });
+  if(n==='teamboard') renderMemTeamView();
+}
+
+async function renderMemTeamView(){
+  const members=TEAM.filter(m=>!m.isManager);
+  let total=0,done=0;
+  const memberData=await Promise.all(members.map(m=>getTasks(m.id)));
+  memberData.forEach(tasks=>{total+=tasks.length;done+=tasks.filter(x=>x.status==='done').length});
+  document.getElementById('mem-team-stats').innerHTML=`
+    <div class="stat"><div class="stat-num">${members.length}</div><div class="stat-lbl">members</div></div>
+    <div class="stat"><div class="stat-num">${total}</div><div class="stat-lbl">total tasks</div></div>
+    <div class="stat"><div class="stat-num">${done}</div><div class="stat-lbl">completed</div></div>
+    <div class="stat"><div class="stat-num">${total?Math.round(done/total*100):0}%</div><div class="stat-lbl">overall done</div></div>`;
+  document.getElementById('mem-member-grid').innerHTML=members.map((m,i)=>{
+    const tasks=memberData[i];const d=tasks.filter(x=>x.status==='done').length;
+    const pct=tasks.length?Math.round(d/tasks.length*100):0;
+    const bl=tasks.filter(x=>x.status==='blocked').length;
+    return`<div class="member-card" onclick="openMemDetail('${m.id}',this)">
+      <div class="m-head">
+        <div class="av" style="background:${m.color};width:34px;height:34px;font-size:12px">${ini(m.name)}</div>
+        <div><div class="m-name">${esc(m.name)}</div><div class="m-sub">${d}/${tasks.length} done${bl?' · 🔴 '+bl+' blocked':''}</div></div>
+      </div>
+      <div class="prog-bar"><div class="prog-fill" style="width:${pct}%;background:${m.color}"></div></div>
+      <div class="prog-lbl"><span>${pct}%</span><span>${tasks.length-d} pending</span></div>
+    </div>`
+  }).join('');
+  document.getElementById('mem-member-detail').innerHTML='';
+}
+
+async function openMemDetail(uid,card){
+  document.querySelectorAll('#mem-member-grid .member-card').forEach(c=>c.classList.remove('sel'));
+  card.classList.add('sel');
+  const det=document.getElementById('mem-member-detail');
+  det.innerHTML=`<div id="member-board-wrap"></div>`;
+  await renderMemberBoard(uid,true);
+}
+
 // ── PLANNER (manager private, localStorage) ───────────────────────────
 function renderPlannerBlocks(){
+  // Only manager can see planner
+  if(!me || !me.isManager) return;
   const nowId=getNowBlock();
   let total=0,done=0;
   SCHEDULE.forEach(b=>{const n=getPNotes(b.id);total+=n.length;done+=n.filter(x=>x.done).length});
@@ -419,9 +489,9 @@ function renderPNotes(bid){
     </div>`).join('')
 }
 function toggleBlock(bid){const b=document.getElementById('pbbody-'+bid);const c=document.getElementById('pbchev-'+bid);const h=b.previousElementSibling;const o=b.classList.toggle('open');c.classList.toggle('open',o);h.classList.toggle('open',o)}
-function addPNote(bid){const inp=document.getElementById('pbinp-'+bid);const val=(inp.value||'').trim();if(!val)return;const n=getPNotes(bid);n.push({text:val,done:false,ts:Date.now()});setPNotes(bid,n);inp.value='';document.getElementById('pbnotes-'+bid).innerHTML=renderPNotes(bid);updPCnt(bid);showToast('Added')}
-function togglePN(bid,i){const n=getPNotes(bid);if(n[i]){n[i].done=!n[i].done;if(n[i].done&&!n[i].doneTs)n[i].doneTs=Date.now();if(!n[i].done)n[i].doneTs=null;}setPNotes(bid,n);document.getElementById('pbnotes-'+bid).innerHTML=renderPNotes(bid);updPCnt(bid);updPProg()}
-function delPN(bid,i){const n=getPNotes(bid);n.splice(i,1);setPNotes(bid,n);document.getElementById('pbnotes-'+bid).innerHTML=renderPNotes(bid);updPCnt(bid);updPProg();showToast('Deleted')}
+function addPNote(bid){if(!me||!me.isManager)return;const inp=document.getElementById('pbinp-'+bid);const val=(inp.value||'').trim();if(!val)return;const n=getPNotes(bid);n.push({text:val,done:false,ts:Date.now()});setPNotes(bid,n);inp.value='';document.getElementById('pbnotes-'+bid).innerHTML=renderPNotes(bid);updPCnt(bid);showToast('Added')}
+function togglePN(bid,i){if(!me||!me.isManager)return;const n=getPNotes(bid);if(n[i]){n[i].done=!n[i].done;if(n[i].done&&!n[i].doneTs)n[i].doneTs=Date.now();if(!n[i].done)n[i].doneTs=null;}setPNotes(bid,n);document.getElementById('pbnotes-'+bid).innerHTML=renderPNotes(bid);updPCnt(bid);updPProg()}
+function delPN(bid,i){if(!me||!me.isManager)return;const n=getPNotes(bid);n.splice(i,1);setPNotes(bid,n);document.getElementById('pbnotes-'+bid).innerHTML=renderPNotes(bid);updPCnt(bid);updPProg();showToast('Deleted')}
 function updPCnt(bid){const n=getPNotes(bid);const el=document.getElementById('pbcnt-'+bid);if(el)el.textContent=n.length?n.filter(x=>x.done).length+'/'+n.length:''}
 function updPProg(){let t=0,d=0;SCHEDULE.forEach(b=>{const n=getPNotes(b.id);t+=n.length;d+=n.filter(x=>x.done).length});const p=t?Math.round(d/t*100):0;document.getElementById('pl-pct').textContent=p+'%';document.getElementById('pl-prog').style.width=p+'%'}
 
